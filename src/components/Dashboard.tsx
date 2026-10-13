@@ -150,7 +150,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-lg font-semibold text-gray-800">Dashboard</h1>
           {lastUpdated && (
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-gray-600 mt-0.5 bg-white/70 rounded px-1.5 py-0.5 inline-block">
               Last updated: {lastUpdated.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{' '}
               at {lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </p>
