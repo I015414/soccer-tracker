@@ -65,14 +65,24 @@ export function getMonthlyBreakdown(payments: Payment[], rentConfigs: RentConfig
   })
 }
 
-export function getAccumulatedBalance(
+function buildYearAccumulated(
   payments: Payment[],
   rentConfigs: RentConfig[],
   initialBalances: InitialBalance[],
-  year: number
+  year: number,
+  depth: number
 ): AccumulatedData[] {
   const entry = initialBalances.find(b => Number(b.year) === year)
-  const startBalance = entry ? Number(entry.amount) : 0
+  let startBalance: number
+  if (entry) {
+    startBalance = Number(entry.amount)
+  } else if (depth < 10) {
+    // Auto carry-forward: use previous year's December accumulated balance
+    const prev = buildYearAccumulated(payments, rentConfigs, initialBalances, year - 1, depth + 1)
+    startBalance = prev[11]?.accumulated ?? 0
+  } else {
+    startBalance = 0
+  }
   let running = startBalance
   return Array.from({ length: 12 }, (_, i) => {
     const month = i + 1
@@ -84,6 +94,15 @@ export function getAccumulatedBalance(
     running = running + collected + adminContrib - rent
     return { month, monthLabel: MONTH_LABELS[i], accumulated: running }
   })
+}
+
+export function getAccumulatedBalance(
+  payments: Payment[],
+  rentConfigs: RentConfig[],
+  initialBalances: InitialBalance[],
+  year: number
+): AccumulatedData[] {
+  return buildYearAccumulated(payments, rentConfigs, initialBalances, year, 0)
 }
 
 export function getPlayerCountsByMonth(payments: Payment[], year: number): PlayerCountData[] {
