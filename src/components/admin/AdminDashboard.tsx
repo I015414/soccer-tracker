@@ -41,11 +41,22 @@ interface LedgerRow {
   hasData: boolean
 }
 
+function effectiveYear(p: Payment): number {
+  const d = p.type === 'monthly' && p.period_start
+    ? new Date(p.period_start + 'T12:00:00Z')
+    : new Date(p.payment_date)
+  return d.getFullYear()
+}
+
+function effectiveMonth(p: Payment): number {
+  const d = p.type === 'monthly' && p.period_start
+    ? new Date(p.period_start + 'T12:00:00Z')
+    : new Date(p.payment_date)
+  return d.getMonth() + 1
+}
+
 function getPaymentsForCell(payments: Payment[], year: number, month: number, col: ColumnKey): Payment[] {
-  const mp = payments.filter(p => {
-    const d = new Date(p.payment_date)
-    return d.getFullYear() === year && d.getMonth() + 1 === month
-  })
+  const mp = payments.filter(p => effectiveYear(p) === year && effectiveMonth(p) === month)
   switch (col) {
     case 'monthlyPlayers':     return mp.filter(p => p.type === 'monthly')
     case 'onDemandPlayers':    return mp.filter(p => p.type === 'on_demand')
@@ -64,7 +75,7 @@ function buildLedger(
   selectedYear: number | 'all'
 ): LedgerRow[] {
   const allYears = Array.from(new Set([
-    ...payments.map(p => new Date(p.payment_date).getFullYear()),
+    ...payments.map(p => effectiveYear(p)),
     ...initialBalances.map(b => Number(b.year)),
     new Date().getFullYear(),
   ])).sort()
@@ -77,10 +88,7 @@ function buildLedger(
 
   for (const y of years) {
     for (let m = 1; m <= 12; m++) {
-      const mp = payments.filter(p => {
-        const d = new Date(p.payment_date)
-        return d.getFullYear() === y && d.getMonth() + 1 === m
-      })
+      const mp = payments.filter(p => effectiveYear(p) === y && effectiveMonth(p) === m)
       const monthlyPlayers    = mp.filter(p => p.type === 'monthly').reduce((s, p) => s + Number(p.amount), 0)
       const onDemandPlayers   = mp.filter(p => p.type === 'on_demand').reduce((s, p) => s + Number(p.amount), 0)
       const signupgenius      = mp.filter(p => p.source === 'signupgenius').reduce((s, p) => s + Number(p.amount), 0)
@@ -222,7 +230,7 @@ export default function AdminDashboard() {
 
   const availableYears = useMemo(() => Array.from(new Set([
     new Date().getFullYear(),
-    ...payments.map(p => new Date(p.payment_date).getFullYear()),
+    ...payments.map(p => effectiveYear(p)),
     ...initialBalances.map(b => Number(b.year)),
   ])).sort((a, b) => b - a), [payments, initialBalances])
 
