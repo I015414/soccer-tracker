@@ -23,7 +23,9 @@ function DrillModal({ payments, year, selection, onClose }: {
 }) {
   const filtered = payments
     .filter(p => {
-      const d = new Date(p.payment_date)
+      const d = p.type === 'monthly' && p.period_start
+        ? new Date(p.period_start + 'T12:00:00Z')
+        : new Date(p.payment_date)
       return d.getFullYear() === year && d.getMonth() + 1 === selection.month
     })
     .filter(p => selection.type === 'all' || p.type === selection.type)
@@ -47,7 +49,7 @@ function DrillModal({ payments, year, selection, onClose }: {
             <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-4 py-2 text-left text-xs text-gray-500 font-medium uppercase tracking-wide">Name</th>
-                <th className="px-4 py-2 text-left text-xs text-gray-500 font-medium uppercase tracking-wide">Date</th>
+                <th className="px-4 py-2 text-left text-xs text-gray-500 font-medium uppercase tracking-wide">Period / Date</th>
                 <th className="px-4 py-2 text-left text-xs text-gray-500 font-medium uppercase tracking-wide">Type</th>
               </tr>
             </thead>
@@ -56,7 +58,10 @@ function DrillModal({ payments, year, selection, onClose }: {
                 <tr key={p.id} className="bg-white">
                   <td className="px-4 py-2 text-gray-800">{p.player_name}</td>
                   <td className="px-4 py-2 text-gray-500 text-xs whitespace-nowrap">
-                    {new Date(p.payment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+                    {p.type === 'monthly' && p.period_start
+                      ? new Date(p.period_start + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                      : new Date(p.payment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+                    }
                   </td>
                   <td className="px-4 py-2">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -124,7 +129,12 @@ export default function Dashboard() {
   const availableYears = Array.from(
     new Set([
       new Date().getFullYear(),
-      ...payments.map(p => new Date(p.payment_date).getFullYear()),
+      ...payments.map(p => {
+        const d = p.type === 'monthly' && p.period_start
+          ? new Date(p.period_start + 'T12:00:00Z')
+          : new Date(p.payment_date)
+        return d.getFullYear()
+      }),
       ...initialBalances.map(b => Number(b.year)),
     ])
   ).sort((a, b) => b - a)

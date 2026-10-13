@@ -163,7 +163,7 @@ function DetailModal({ selection, payments, onClose }: DetailModalProps) {
               <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="px-4 py-2 text-left text-gray-500 font-semibold uppercase tracking-wide">Name</th>
-                  <th className="px-4 py-2 text-left text-gray-500 font-semibold uppercase tracking-wide">Date</th>
+                  <th className="px-4 py-2 text-left text-gray-500 font-semibold uppercase tracking-wide">Period / Date</th>
                   <th className="px-4 py-2 text-left text-gray-500 font-semibold uppercase tracking-wide">Source</th>
                   <th className="px-4 py-2 text-right text-gray-500 font-semibold uppercase tracking-wide">Amount</th>
                 </tr>
@@ -173,7 +173,10 @@ function DetailModal({ selection, payments, onClose }: DetailModalProps) {
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-gray-800 font-medium">{p.player_name}</td>
                     <td className="px-4 py-2 text-gray-500 whitespace-nowrap">
-                      {new Date(p.payment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                      {p.type === 'monthly' && p.period_start
+                        ? new Date(p.period_start + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                        : new Date(p.payment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+                      }
                     </td>
                     <td className="px-4 py-2 text-gray-400">{sourceLabel(p.source)}</td>
                     <td className="px-4 py-2 text-right font-mono text-gray-800">

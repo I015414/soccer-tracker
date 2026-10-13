@@ -1,0 +1,6 @@
+Open a terminal and execute below:
+
+cd "C:\BKP\AI Applications\soccer-tracker"
+git add .
+git commit -m "description of what changed"
+git push

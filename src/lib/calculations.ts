@@ -24,12 +24,18 @@ export interface PlayerCountData {
   onDemandPlayers: number
 }
 
+function effectiveDate(p: Payment): Date {
+  return p.type === 'monthly' && p.period_start
+    ? new Date(p.period_start + 'T12:00:00Z')
+    : new Date(p.payment_date)
+}
+
 function paymentYear(p: Payment): number {
-  return new Date(p.payment_date).getFullYear()
+  return effectiveDate(p).getFullYear()
 }
 
 function paymentMonth(p: Payment): number {
-  return new Date(p.payment_date).getMonth() + 1
+  return effectiveDate(p).getMonth() + 1
 }
 
 export function getRentForMonth(rentConfigs: RentConfig[], year: number, month: number): number {
