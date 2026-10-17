@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { parseSignUpGeniusCSV } from '../../lib/parsers/signupgenius'
 
@@ -33,12 +33,30 @@ function addMonths(isoDate: string, n: number): string {
   return `${y}-${m}-21`
 }
 
+function fmtDate(d: Date) {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+    ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
 export default function SignUpGeniusImport() {
   const [rows, setRows] = useState<SgRow[]>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'reviewing' | 'done' | 'error'>('idle')
   const [stats, setStats] = useState<{ imported: number; skipped: number } | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
   const [loading, setLoading] = useState(false)
+  const [lastImported, setLastImported] = useState<Date | null>(null)
+
+  useEffect(() => {
+    supabase
+      .from('payments')
+      .select('created_at')
+      .eq('source', 'signupgenius')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data?.[0]) setLastImported(new Date(data[0].created_at))
+      })
+  }, [])
 
   async function handleFile(file: File) {
     setStatus('loading')
@@ -119,6 +137,7 @@ export default function SignUpGeniusImport() {
 
     setStats({ imported, skipped: rows.length - imported })
     setStatus('done')
+    setLastImported(new Date())
     setLoading(false)
   }
 
@@ -130,9 +149,16 @@ export default function SignUpGeniusImport() {
     <div className="space-y-4">
       {(status === 'idle' || status === 'error') && (
         <>
-          <p className="text-sm text-gray-600">
-            Upload a SignUpGenius CSV export. Review rows before importing.
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              Upload a SignUpGenius CSV export. Review rows before importing.
+            </p>
+            {lastImported && (
+              <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
+                Last import: {fmtDate(lastImported)}
+              </span>
+            )}
+          </div>
           <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-8 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
             <span className="text-2xl mb-2">📄</span>
             <span className="text-sm font-medium text-gray-600">Click to select a CSV file</span>
@@ -157,6 +183,9 @@ export default function SignUpGeniusImport() {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">Amounts shown net of $3.15 CC fee</span>
+              {lastImported && (
+                <span className="text-xs text-gray-400">Last import: {fmtDate(lastImported)}</span>
+              )}
               <button onClick={() => { setStatus('idle'); setRows([]) }}
                 className="text-xs text-gray-400 hover:text-gray-600 underline">Cancel</button>
             </div>

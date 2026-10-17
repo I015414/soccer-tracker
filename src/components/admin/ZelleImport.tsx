@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { parseBankCSV } from '../../lib/parsers/zelle'
 import type { StagingRow } from '../../lib/parsers/shared'
@@ -8,7 +8,7 @@ import ReviewTable from './ReviewTable'
 function expandRows(rows: StagingRow[]): PaymentInsert[] {
   const result: PaymentInsert[] = []
   for (const row of rows) {
-    if (!row.included || row.type === 'unknown') continue
+    if (!row.included || row.is_duplicate || row.type === 'unknown') continue
     for (let i = 0; i < row.count; i++) {
       const periodDate = new Date(row.period_start + 'T12:00:00Z')
       periodDate.setMonth(periodDate.getMonth() + i)
@@ -34,12 +34,30 @@ function expandRows(rows: StagingRow[]): PaymentInsert[] {
   return result
 }
 
+function fmtDate(d: Date) {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+    ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
 export default function ZelleImport() {
   const [rows, setRows] = useState<StagingRow[]>([])
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<'idle' | 'reviewing' | 'done' | 'error'>('idle')
   const [stats, setStats] = useState<{ imported: number; skipped: number } | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const [lastImported, setLastImported] = useState<Date | null>(null)
+
+  useEffect(() => {
+    supabase
+      .from('payments')
+      .select('created_at')
+      .eq('source', 'zelle')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data?.[0]) setLastImported(new Date(data[0].created_at))
+      })
+  }, [])
 
   async function handleFile(file: File) {
     const text = await file.text()
@@ -49,7 +67,26 @@ export default function ZelleImport() {
       setStatus('error')
       return
     }
-    setRows(parsed)
+
+    // Check which transactions already exist in DB (first period slot ::0)
+    const checkKeys = parsed
+      .map(r => r.zelle_key_base ? `${r.zelle_key_base}::0` : null)
+      .filter(Boolean) as string[]
+    const existingBases = new Set<string>()
+    if (checkKeys.length > 0) {
+      const { data: existing } = await supabase
+        .from('payments')
+        .select('zelle_key')
+        .in('zelle_key', checkKeys)
+      ;(existing ?? []).forEach((r: { zelle_key: string }) => {
+        existingBases.add(r.zelle_key.replace(/::0$/, ''))
+      })
+    }
+
+    setRows(parsed.map(r => ({
+      ...r,
+      is_duplicate: existingBases.has(r.zelle_key_base ?? ''),
+    })))
     setStatus('reviewing')
     setErrorMsg('')
   }
@@ -66,6 +103,7 @@ export default function ZelleImport() {
       return
     }
 
+    // Final dedup check before insert (handles edge cases like split rows)
     const keys = toInsert.map(r => r.zelle_key).filter(Boolean) as string[]
     const { data: existing } = await supabase.from('payments').select('zelle_key').in('zelle_key', keys)
     const existingKeys = new Set((existing ?? []).map((r: { zelle_key: string }) => r.zelle_key))
@@ -79,6 +117,7 @@ export default function ZelleImport() {
     }
     setStats({ imported, skipped: toInsert.length - imported })
     setStatus('done')
+    setLastImported(new Date())
     setLoading(false)
   }
 
@@ -86,9 +125,16 @@ export default function ZelleImport() {
     <div className="space-y-4">
       {status === 'idle' || status === 'error' ? (
         <>
-          <p className="text-sm text-gray-600">
-            Upload your bank statement CSV. Only Zelle credit transactions are imported. Review before confirming.
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              Upload your bank statement CSV. Only Zelle credit transactions are imported. Review before confirming.
+            </p>
+            {lastImported && (
+              <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
+                Last import: {fmtDate(lastImported)}
+              </span>
+            )}
+          </div>
           <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-8 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
             <span className="text-2xl mb-2">🏦</span>
             <span className="text-sm font-medium text-gray-600">Click to select a CSV file</span>
@@ -101,7 +147,12 @@ export default function ZelleImport() {
         <>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-700">Review Zelle Transactions</h3>
-            <button onClick={() => { setStatus('idle'); setRows([]) }} className="text-xs text-gray-400 hover:text-gray-600 underline">Cancel</button>
+            <div className="flex items-center gap-4">
+              {lastImported && (
+                <span className="text-xs text-gray-400">Last import: {fmtDate(lastImported)}</span>
+              )}
+              <button onClick={() => { setStatus('idle'); setRows([]) }} className="text-xs text-gray-400 hover:text-gray-600 underline">Cancel</button>
+            </div>
           </div>
           <ReviewTable rows={rows} onChange={setRows} onConfirm={handleConfirm} loading={loading} />
         </>

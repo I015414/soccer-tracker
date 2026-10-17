@@ -10,6 +10,7 @@ export interface StagingRow {
   note: string
   payment_date: string
   included: boolean
+  is_duplicate?: boolean
   type: PaymentType
   count: number
   unit_amount: number

@@ -78,6 +78,7 @@ export default function ReviewTable({ rows, onChange, onConfirm, loading }: Prop
     const diff = Math.abs(groupAllocated(r.split_group_id) - r.split_original_amount)
     return diff > 0.01
   })
+  const dupCount = rows.filter(r => r.is_duplicate).length
 
   return (
     <div className="space-y-4">
@@ -86,6 +87,7 @@ export default function ReviewTable({ rows, onChange, onConfirm, loading }: Prop
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
             <tr>
               <th className="px-3 py-2 text-left">Include</th>
+              <th className="px-3 py-2 text-left">Status</th>
               <th className="px-3 py-2 text-left">Date</th>
               <th className="px-3 py-2 text-left">Player</th>
               <th className="px-3 py-2 text-right">Amount</th>
@@ -106,9 +108,15 @@ export default function ReviewTable({ rows, onChange, onConfirm, loading }: Prop
               const balanced = Math.abs(remaining) < 0.01
 
               return (
-                <tr key={row.id} className={`${!row.included ? 'opacity-40' : ''} ${row.type === 'unknown' && row.included ? 'bg-amber-50' : isSplit ? 'bg-blue-50' : 'bg-white'}`}>
+                <tr key={row.id} className={`${row.is_duplicate ? 'opacity-50 bg-gray-50' : !row.included ? 'opacity-40' : row.type === 'unknown' && row.included ? 'bg-amber-50' : isSplit ? 'bg-blue-50' : 'bg-white'}`}>
                   <td className="px-3 py-2">
-                    <input type="checkbox" checked={row.included} onChange={e => update(row.id, { included: e.target.checked })} />
+                    <input type="checkbox" checked={row.included && !row.is_duplicate} disabled={row.is_duplicate} onChange={e => update(row.id, { included: e.target.checked })} />
+                  </td>
+                  <td className="px-3 py-2">
+                    {row.is_duplicate
+                      ? <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">Imported</span>
+                      : <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">New</span>
+                    }
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{dateLabel(row.payment_date)}</td>
                   <td className="px-3 py-2">
@@ -205,7 +213,8 @@ export default function ReviewTable({ rows, onChange, onConfirm, loading }: Prop
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-500">
-          {rows.filter(r => r.included).length} of {rows.length} rows will be imported
+          {rows.filter(r => r.included && !r.is_duplicate).length} of {rows.length} rows will be imported
+          {dupCount > 0 && <span className="ml-2 text-gray-400">· {dupCount} already imported (shown for reference)</span>}
         </p>
         <button
           onClick={onConfirm}
